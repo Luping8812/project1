@@ -1,0 +1,105 @@
+#include <opencv2/opencv.hpp>
+#include <ctime>
+#include <iomanip>
+
+class ImageAdjuster
+{
+public:
+    cv::Mat image; // 原始圖像
+    cv::Mat adjustedImage; // 調整後的圖像
+    std::string outputFilename; // 輸出圖像的檔案名稱
+
+    void saveImage()
+    {
+        // 取得當前時間來為輸出後的照片命名
+        std::time_t t = std::time(nullptr);
+        std::tm tm;
+        localtime_s(&tm, &t);
+        std::ostringstream oss;
+        oss << std::put_time(&tm, "%Y%m%d_%H%M%S");
+        auto str = oss.str();
+
+        if (!str.empty())
+        {
+            outputFilename = "output_" + str + ".jpg";
+            cv::imwrite(outputFilename, adjustedImage);
+            std::cout << "Saved output image as " << outputFilename << std::endl;
+        }
+        else
+        {
+            std::cout << "Failed to generate a unique filename." << std::endl;
+        }
+    }
+
+
+    static void onMouse(int event, int x, int y, int flags, void* userdata)//回調函數
+    {
+        ImageAdjuster* adjuster = static_cast<ImageAdjuster*>(userdata);
+
+        if (event == cv::EVENT_LBUTTONUP)
+        {
+            if (x >= 10 && x <= 110 && y >= 10 && y <= 40)
+            {
+                adjuster->saveImage();
+            }
+        }
+    }
+};
+
+int main()
+{
+    ImageAdjuster adjuster;
+
+    // 讀取圖像
+    adjuster.image = cv::imread("C://Users//Luping//Desktop//image.jpg");
+
+    if (adjuster.image.empty())
+    {
+        std::cout << "無法讀取圖像！" << std::endl;
+        return -1;
+    }
+
+    // 創建窗口
+    cv::namedWindow("Image Adjustments");
+
+    // 初始化參數
+    int contrast = 50;   // 對比度
+    int brightness = 50; // 亮度
+    int hue = 0;         // 色調
+
+    // 創建滑動條
+    cv::createTrackbar("Contrast", "Image Adjustments", &contrast, 100);
+    cv::createTrackbar("Brightness", "Image Adjustments", &brightness, 100);
+    cv::createTrackbar("Hue", "Image Adjustments", &hue, 360);
+
+    while (true)
+    {
+        // 調整圖像參數
+        adjuster.image.convertTo(adjuster.adjustedImage, -1, contrast / 50.0, brightness - 50);
+
+        // 調整色調
+        cv::cvtColor(adjuster.adjustedImage, adjuster.adjustedImage, cv::COLOR_BGR2HSV);
+        std::vector<cv::Mat> channels;
+        cv::split(adjuster.adjustedImage, channels);
+        channels[0] += hue;
+        cv::merge(channels, adjuster.adjustedImage);
+        cv::cvtColor(adjuster.adjustedImage, adjuster.adjustedImage, cv::COLOR_HSV2BGR);
+
+        // 繪製按鈕
+        cv::rectangle(adjuster.adjustedImage, cv::Rect(10, 10, 100, 30), cv::Scalar(0, 0, 255), -1);
+        cv::putText(adjuster.adjustedImage, "Save", cv::Point(20, 30), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(255, 255, 255), 1, cv::LINE_AA);
+
+        // 顯示調整後的圖像
+        cv::imshow("Image Adjustments", adjuster.adjustedImage);
+
+        // 設置滑鼠事件回調
+        cv::setMouseCallback("Image Adjustments", ImageAdjuster::onMouse, &adjuster);
+
+        // 等待鍵盤輸入
+        char key = cv::waitKey(1);
+        if (key == 27) // 按下Esc鍵退出
+            break;
+    }
+
+    return 0;
+}
